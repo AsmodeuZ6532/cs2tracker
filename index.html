@@ -709,6 +709,22 @@
             color: var(--text-muted);
         }
 
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h2 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
         /* ============================================
            АДАПТИВНОСТЬ
            ============================================ */
@@ -906,7 +922,7 @@
                             <input type="text" id="profileNameInput" placeholder="Введите никнейм">
                             <button class="btn btn-sm btn-success" id="saveProfileName">Сохранить</button>
                         </div>
-                        <p id="profileRole" style="margin-top:8px; color:var(--text-secondary);">Роль: AWP</p>
+                        <p id="profileRole" style="margin-top:8px; color:var(--text-secondary);">Роль: —</p>
                         <p id="profileMaps" style="color:var(--text-secondary);">Любимые карты: —</p>
                     </div>
                 </div>
@@ -1019,9 +1035,7 @@
             profile = JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILE)) || { name: 'Игрок' };
             users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS)) || {};
 
-            if (matches.length === 0) {
-                generateTestData();
-            }
+            // НЕ генерируем тестовые данные! Оставляем пустым
         }
 
         function saveData() {
@@ -1029,48 +1043,6 @@
             localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
             localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
             localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-        }
-
-        function generateTestData() {
-            const mapPool = ['Mirage', 'Inferno', 'Dust2', 'Nuke', 'Ancient', 'Anubis', 'Cache', 'Overpass'];
-            const roles = ['AWP', 'Rifler', 'Lurker', 'IGL', 'Support'];
-            const comments = ['Хороший матч', 'Отлично сыграли', 'Нужно больше тренироваться', 'Командная работа', 'Индивидуальный перфоманс'];
-            let elo = 1500;
-            const today = new Date();
-
-            for (let i = 0; i < 25; i++) {
-                const date = new Date(today);
-                date.setDate(date.getDate() - (25 - i) * 2);
-
-                const isWin = Math.random() > 0.4;
-                const change = Math.floor(Math.random() * 30 + 15);
-                const newElo = isWin ? elo + change : elo - change;
-                const k = Math.floor(Math.random() * 20 + 10);
-                const d = Math.floor(Math.random() * 15 + 8);
-
-                matches.push({
-                    id: generateId(),
-                    date: date.toISOString().slice(0, 10),
-                    map: mapPool[Math.floor(Math.random() * mapPool.length)],
-                    score: `${16 - Math.floor(Math.random() * 4)}-${Math.floor(Math.random() * 14 + 10)}`,
-                    result: isWin ? 'win' : 'loss',
-                    eloBefore: elo,
-                    eloAfter: newElo,
-                    rating: parseFloat((Math.random() * 0.8 + 0.7).toFixed(2)),
-                    kills: k,
-                    deaths: d,
-                    assists: Math.floor(Math.random() * 8 + 2),
-                    adr: parseFloat((Math.random() * 60 + 40).toFixed(1)),
-                    kast: Math.floor(Math.random() * 30 + 60),
-                    entry: Math.floor(Math.random() * 4),
-                    clutches: Math.floor(Math.random() * 3),
-                    role: roles[Math.floor(Math.random() * roles.length)],
-                    comment: comments[Math.floor(Math.random() * comments.length)]
-                });
-                elo = newElo;
-            }
-
-            saveData();
         }
 
         function getFilteredMatches(period = 'all') {
@@ -1217,10 +1189,11 @@
             ctx.clearRect(0, 0, width, height);
 
             if (!data || data.length < 2) {
-                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#666';
+                const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#666';
+                ctx.fillStyle = textColor;
                 ctx.font = '16px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Недостаточно данных для графика (нужно минимум 2 матча)', width / 2, height / 2);
+                ctx.fillText('Нет данных для отображения графика', width / 2, height / 2);
                 return;
             }
 
@@ -1417,6 +1390,21 @@
             else if (sort === 'elo') filtered.sort((a, b) => ((b.eloAfter || 0) - (b.eloBefore || 0)) - ((a.eloAfter || 0) - (a.eloBefore || 0)));
             else if (sort === 'rating') filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
 
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9">
+                            <div class="empty-state">
+                                <div class="icon">🎯</div>
+                                <h2>Нет добавленных матчей</h2>
+                                <p>Начните отслеживать свою статистику! Добавьте первый матч на вкладке "Панель"</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
             tbody.innerHTML = filtered.map((m) => {
                 const idx = matches.indexOf(m);
                 const kd = calcKD(m.kills, m.deaths);
@@ -1444,7 +1432,13 @@
         function renderAnalytics() {
             const n = matches.length;
             if (!n) {
-                document.getElementById('analyticsCards').innerHTML = '<div class="analytics-item">Нет данных</div>';
+                document.getElementById('analyticsCards').innerHTML = `
+                    <div class="analytics-item" style="grid-column:1/-1;text-align:center;padding:40px;">
+                        <div style="font-size:3rem;margin-bottom:12px;">📊</div>
+                        <h3 style="color:var(--text-primary);">Нет данных для аналитики</h3>
+                        <p style="color:var(--text-secondary);">Добавьте матчи, чтобы увидеть статистику</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -1596,7 +1590,13 @@
                 .sort((a, b) => b.elo - a.elo);
 
             if (sorted.length === 0) {
-                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary);">👀 Пользователей не найдено</div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🏆</div>
+                        <h2>Нет игроков в рейтинге</h2>
+                        <p>Добавляйте матчи и ваш профиль появится в рейтинге</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -1671,6 +1671,17 @@
             const mapNames = ['Mirage', 'Inferno', 'Dust2', 'Nuke', 'Ancient', 'Anubis', 'Cache', 'Overpass'];
             const grid = document.getElementById('mapGrid');
 
+            if (matches.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-secondary);">
+                        <div style="font-size:3rem;margin-bottom:12px;">🗺️</div>
+                        <h3 style="color:var(--text-primary);">Нет данных по картам</h3>
+                        <p>Добавьте матчи, чтобы увидеть статистику по картам</p>
+                    </div>
+                `;
+                return;
+            }
+
             grid.innerHTML = mapNames.map(name => {
                 const ms = matches.filter(m => (m.map || '').toLowerCase() === name.toLowerCase());
                 const n = ms.length;
@@ -1710,7 +1721,9 @@
 
         loadData();
 
-        document.getElementById('matchDate').value = new Date().toISOString().slice(0, 10);
+        // Устанавливаем дату по умолчанию на сегодня
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('matchDate').value = today;
 
         document.getElementById('goalElo').value = goals.elo || 2000;
         document.getElementById('goalRating').value = goals.rating || 1.5;
@@ -1816,6 +1829,7 @@
 
         renderAll();
 
+        // Добавляем пользователя в рейтинг каждые 30 секунд
         setInterval(() => {
             if (matches.length > 0) {
                 addUserToRanking();
